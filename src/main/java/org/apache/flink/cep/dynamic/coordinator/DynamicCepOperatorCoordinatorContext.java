@@ -7,12 +7,19 @@ import java.io.IOException;
 
 
 public class DynamicCepOperatorCoordinatorContext implements Closeable {
-    public DynamicCepOperatorCoordinatorContext(DynamicCepOperatorCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory, OperatorCoordinator.Context context) {
 
+    private DynamicCepOperatorCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory;
+    private OperatorCoordinator.Context context;
+
+    public DynamicCepOperatorCoordinatorContext(
+            DynamicCepOperatorCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory,
+            OperatorCoordinator.Context context) {
+        this.coordinatorThreadFactory = coordinatorThreadFactory;
+        this.context = context;
     }
 
     public ClassLoader getUserCodeClassloader() {
-        return null;
+        return ClassLoader.getSystemClassLoader();
     }
 
     public void failJob(Throwable t) {
@@ -42,6 +49,6 @@ public class DynamicCepOperatorCoordinatorContext implements Closeable {
     }
 
     public void runInCoordinatorThread(Runnable runnable) {
-
+        runnable.run();
     }
 }
