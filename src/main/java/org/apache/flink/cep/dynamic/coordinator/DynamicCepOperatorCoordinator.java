@@ -365,7 +365,7 @@ public class DynamicCepOperatorCoordinator<T>
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 DataOutputStream out = new DataOutputViewStreamWrapper(baos)) {
 
-            writeCoordinatorSerdeVersion(out);
+            DynamicCepOperatorCoordinatorSerdeUtils.writeCoordinatorSerdeVersion(out);
             out.writeInt(patternProcessorSerializer.getVersion());
             byte[] serializedCheckpoint =
                     patternProcessorSerializer.serialize(currentPatternProcessors);
@@ -385,10 +385,10 @@ public class DynamicCepOperatorCoordinator<T>
     private List<PatternProcessor<T>> deserializeCheckpoint(byte[] bytes) throws Exception {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
                 DataInputStream in = new DataInputViewStreamWrapper(bais)) {
-            verifyCoordinatorSerdeVersion(in);
+            DynamicCepOperatorCoordinatorSerdeUtils.verifyCoordinatorSerdeVersion(in);
             int serializerVersion = in.readInt();
             int serializedCheckpointSize = in.readInt();
-            byte[] serializedCheckpoint = readBytes(in, serializedCheckpointSize);
+            byte[] serializedCheckpoint = DynamicCepOperatorCoordinatorSerdeUtils.readBytes(in, serializedCheckpointSize);
 
             return patternProcessorSerializer.deserialize(serializerVersion, serializedCheckpoint);
         }
