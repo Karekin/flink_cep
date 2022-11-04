@@ -4,11 +4,28 @@ import java.util.Objects;
 
 /** Exemplary event for usage in tests of CEP. */
 public class Event {
+    /**
+     * 用户id
+     */
     private final int id;
+    /**
+     * 用户名
+     */
     private final String name;
-
+    /**
+     * 产品id
+     */
     private final int productionId;
+    /**
+     * 用户动作，取值如下：
+     * 0代表浏览操作。
+     * 1代表购买动作。
+     * 2代表分享操作。
+     */
     private final int action;
+    /**
+     * 动作时间
+     */
     private final long eventTime;
 
     public Event(int id, String name, int action, int productionId, long timestamp) {

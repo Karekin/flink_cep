@@ -82,7 +82,7 @@ public class CepDemo {
                         TimeBehaviour.ProcessingTime,
                         TypeInformation.of(new TypeHint<String>() {}));
         // Print output stream in taskmanager's stdout
-        output.print();
+        output.print("符合cep-> ");
         // Compile and submit the job
         env.execute("CEPDemo");
     }
@@ -99,15 +99,22 @@ public class CepDemo {
         @Override
         public void run(SourceContext<Event> ctx) throws Exception {
             Random random = new Random();
-            List<String> nameList = Lists.newArrayList("张三","李四","王五","赵六");
+            List<String> nameList = Lists.newArrayList("张三","李四","王五","middle");
+            List<Integer> actionList = Lists.newArrayList(0,0,0,0,0);
+            long eventTime = 0;
             while (flag){
-                int id = random.nextInt(1000);
-                String name = nameList.get(random.nextInt(nameList.size()-1));
-                int productionId = random.nextInt(10);
-                int action = random.nextInt(5);
-                long eventTime = System.currentTimeMillis();
-                Event event = new Event(id, name, productionId, action, eventTime);
+//                int id = random.nextInt(1000);
+//                String name = nameList.get(random.nextInt(nameList.size()));
+//                int productionId = random.nextInt(10);
+//                int action = actionList.get(random.nextInt(actionList.size()));
+//                long eventTime = System.currentTimeMillis();
+//                Event event = new Event(id, name, productionId, action, eventTime);
+
+                eventTime +=1;
+                Event event = new Event(1, "Ken", 0, 1, eventTime);
+
                 ctx.collect(event);
+                System.out.println("原数据-> " + event);
                 Thread.sleep(500);
             }
         }
