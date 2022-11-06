@@ -13,7 +13,7 @@ public class DemoPatternProcessFunction<IN> extends PatternProcessFunction<IN, S
     public void processMatch(
             final Map<String, List<IN>> match, final Context ctx, final Collector<String> out) {
         StringBuilder sb = new StringBuilder();
-        sb.append("A match for Pattern of (id, version): (")
+        sb.append("match for Pattern of (id, version): (")
                 .append(((DynamicCepOperator.ContextFunctionImpl) ctx).patternProcessor().getId())
                 .append(", ")
                 .append(

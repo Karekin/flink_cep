@@ -106,12 +106,12 @@ public class JDBCPeriodicPatternProcessorDiscoverer<T>
         }
 
         try {
-            resultSet = statement.executeQuery("SELECT * FROM " + tableName);
+            resultSet = statement.executeQuery("SELECT * FROM " + tableName + " WHERE is_deleted=0");
             Map<String, Tuple4<String, Integer, String, String>> currentPatternProcessors =
                     new HashMap<>();
             while (resultSet.next()) {
                 currentPatternProcessors.put(
-                        resultSet.getString("id"),
+                        resultSet.getString("id") + "_" + resultSet.getInt("version"),
                         new Tuple4<>(
                                 requireNonNull(resultSet.getString("id")),
                                 resultSet.getInt("version"),

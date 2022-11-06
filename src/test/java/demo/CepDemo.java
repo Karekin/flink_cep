@@ -35,16 +35,6 @@ import java.util.Random;
 
 public class CepDemo {
 
-    public static void printTestPattern(Pattern<?, ?> pattern) throws JsonProcessingException {
-        System.out.println(CepJsonUtils.convertPatternToJSONString(pattern));
-    }
-
-    public static void checkArg(String argName, MultipleParameterTool params) {
-        if (!params.has(argName)) {
-            throw new IllegalArgumentException(argName + " must be set!");
-        }
-    }
-
     public static void main(String[] args) throws Exception {
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -61,14 +51,6 @@ public class CepDemo {
                             }
                         });
 
-//        Pattern<Event, Event> pattern =
-//                Pattern.<Event>begin("start", AfterMatchSkipStrategy.skipPastLastEvent())
-//                        .where(new StartCondition("action == 0"))
-//                        .timesOrMore(3)
-//                        .followedBy("end")
-//                        .where(new EndCondition());
-//        printTestPattern(pattern);
-
         // Dynamic CEP patterns
         SingleOutputStreamOperator<String> output =
                 CEP.dynamicPatterns(
@@ -78,7 +60,7 @@ public class CepDemo {
                                 Constants.JDBC_DRIVE,
                                 Constants.TABLE_NAME,
                                 null,
-                                1000L),
+                                5000L),
                         TimeBehaviour.ProcessingTime,
                         TypeInformation.of(new TypeHint<String>() {}));
         // Print output stream in taskmanager's stdout
@@ -98,18 +80,8 @@ public class CepDemo {
         //要一直执行,不断生成数据
         @Override
         public void run(SourceContext<Event> ctx) throws Exception {
-            Random random = new Random();
-            List<String> nameList = Lists.newArrayList("张三","李四","王五","middle");
-            List<Integer> actionList = Lists.newArrayList(0,0,0,0,0);
             long eventTime = 0;
             while (flag){
-//                int id = random.nextInt(1000);
-//                String name = nameList.get(random.nextInt(nameList.size()));
-//                int productionId = random.nextInt(10);
-//                int action = actionList.get(random.nextInt(actionList.size()));
-//                long eventTime = System.currentTimeMillis();
-//                Event event = new Event(id, name, productionId, action, eventTime);
-
                 eventTime +=1;
                 Event event = new Event(1, "Ken", 0, 1, eventTime);
 
@@ -128,112 +100,4 @@ public class CepDemo {
         }
     }
 
-    @Test
-    public void test() throws Exception {
-        ObjectMapper objectMapper =
-                new ObjectMapper()
-                        .registerModule(
-                                new SimpleModule()
-                                        .addDeserializer(
-                                                ConditionSpec.class,
-                                                ConditionSpecStdDeserializer.INSTANCE)
-                                        .addDeserializer(Time.class, TimeStdDeserializer.INSTANCE)
-                                        .addDeserializer(
-                                                NodeSpec.class, NodeSpecStdDeserializer.INSTANCE));
-
-        String patternStr = "{\n" +
-                "  \"name\": \"end\",\n" +
-                "  \"quantifier\": {\n" +
-                "    \"consumingStrategy\": \"SKIP_TILL_NEXT\",\n" +
-                "    \"properties\": [\n" +
-                "      \"SINGLE\"\n" +
-                "    ],\n" +
-                "    \"times\": null,\n" +
-                "    \"untilCondition\": null\n" +
-                "  },\n" +
-                "  \"condition\": null,\n" +
-                "  \"nodes\": [\n" +
-                "    {\n" +
-                "      \"name\": \"end\",\n" +
-                "      \"quantifier\": {\n" +
-                "        \"consumingStrategy\": \"SKIP_TILL_NEXT\",\n" +
-                "        \"properties\": [\n" +
-                "          \"SINGLE\"\n" +
-                "        ],\n" +
-                "        \"times\": null,\n" +
-                "        \"untilCondition\": null\n" +
-                "      },\n" +
-                "      \"condition\": {\n" +
-                "        \"className\": \"demo.condition.EndCondition\",\n" +
-                "        \"type\": \"CLASS\"\n" +
-                "      },\n" +
-                "      \"type\": \"ATOMIC\"\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"name\": \"middle\",\n" +
-                "      \"quantifier\": {\n" +
-                "        \"consumingStrategy\": \"SKIP_TILL_NEXT\",\n" +
-                "        \"properties\": [\n" +
-                "          \"LOOPING\"\n" +
-                "        ],\n" +
-                "        \"times\": {\n" +
-                "          \"from\": 3,\n" +
-                "          \"to\": 3,\n" +
-                "          \"windowTime\": null\n" +
-                "        },\n" +
-                "        \"untilCondition\": null\n" +
-                "      },\n" +
-                "      \"condition\": {\n" +
-                "        \"className\": \"demo.condition.MiddleCondition\",\n" +
-                "        \"type\": \"CLASS\"\n" +
-                "      },\n" +
-                "      \"type\": \"ATOMIC\"\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"name\": \"start\",\n" +
-                "      \"quantifier\": {\n" +
-                "        \"consumingStrategy\": \"SKIP_TILL_NEXT\",\n" +
-                "        \"properties\": [\n" +
-                "          \"SINGLE\",\n" +
-                "          \"OPTIONAL\"\n" +
-                "        ],\n" +
-                "        \"times\": null,\n" +
-                "        \"untilCondition\": null\n" +
-                "      },\n" +
-                "      \"condition\": {\n" +
-                "        \"className\": \"demo.condition.StartCondition\",\n" +
-                "        \"type\": \"CLASS\"\n" +
-                "      },\n" +
-                "      \"type\": \"ATOMIC\"\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  \"edges\": [\n" +
-                "    {\n" +
-                "      \"source\": \"middle\",\n" +
-                "      \"target\": \"end\",\n" +
-                "      \"type\": \"NOT_FOLLOW\"\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"source\": \"start\",\n" +
-                "      \"target\": \"middle\",\n" +
-                "      \"type\": \"SKIP_TILL_NEXT\"\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  \"window\": {\n" +
-                "    \"type\": \"FIRST_AND_LAST\",\n" +
-                "    \"time\": {\n" +
-                "      \"unit\": \"MINUTES\",\n" +
-                "      \"size\": 10\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"afterMatchStrategy\": {\n" +
-                "    \"type\": \"NO_SKIP\",\n" +
-                "    \"patternName\": null\n" +
-                "  },\n" +
-                "  \"type\": \"COMPOSITE\",\n" +
-                "  \"version\": 1\n" +
-                "}";
-        GraphSpec graphSpec =
-                objectMapper.readValue(patternStr, GraphSpec.class);
-    }
 }
