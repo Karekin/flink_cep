@@ -29,20 +29,44 @@ import org.apache.flink.cep.pattern.conditions.RichOrCondition;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * The Node is used to describe a Pattern and contains all necessary fields of a Pattern. This class
- * is to (de)serialize Nodes in json format.
+ * NodeSpec 类用于描述模式（Pattern）并包含模式的所有必要字段。
+ * 此类的主要功能是支持以 JSON 格式对 Node 进行序列化和反序列化。
  */
+
 public class NodeSpec {
+    // Node 的名称，标识该节点的唯一名称
     private final String name;
+
+    // 量词规格，用于定义模式匹配的条件和属性
     private final QuantifierSpec quantifier;
+
+    // 匹配条件，描述模式的触发逻辑
     private final ConditionSpec condition;
 
+    // 节点的类型，可以是原子节点（ATOMIC）或组合节点（COMPOSITE）
     private final PatternNodeType type;
 
+
+    /**
+     * 构造一个 NodeSpec 对象。
+     *
+     * @param name 节点的名称。
+     * @param quantifier 节点的量词规格，用于描述匹配条件。
+     * @param condition 节点的匹配条件。
+     */
     public NodeSpec(String name, QuantifierSpec quantifier, ConditionSpec condition) {
+        // 默认构造的节点类型为原子节点（ATOMIC）
         this(name, quantifier, condition, PatternNodeType.ATOMIC);
     }
 
+    /**
+     * 构造一个 NodeSpec 对象。
+     *
+     * @param name 节点的名称。
+     * @param quantifier 节点的量词规格，用于描述匹配条件。
+     * @param condition 节点的匹配条件。
+     * @param type 节点的类型，可以是原子节点或组合节点。
+     */
     public NodeSpec(
             @JsonProperty("name") String name,
             @JsonProperty("quantifier") QuantifierSpec quantifier,
@@ -54,24 +78,36 @@ public class NodeSpec {
         this.type = type;
     }
 
-    /** Build NodeSpec from given Pattern. */
+
+    /**
+     * 从给定的 Pattern 构造一个 NodeSpec 对象。
+     *
+     * @param pattern 输入的模式对象。
+     * @return 构造的 NodeSpec 对象。
+     */
     public static NodeSpec fromPattern(Pattern<?, ?> pattern) {
-        QuantifierSpec quantifier =
-                new QuantifierSpec(
-                        pattern.getQuantifier(), pattern.getTimes(), pattern.getUntilCondition());
+        // 从 Pattern 中提取量词规格，包括匹配次数和条件
+        QuantifierSpec quantifier = new QuantifierSpec(
+                pattern.getQuantifier(), pattern.getTimes(), pattern.getUntilCondition());
+
+        // 构造 NodeSpec 对象
         return new Builder()
-                .name(pattern.getName())
-                .quantifier(quantifier)
-                .condition(ConditionSpec.fromCondition(pattern.getCondition()))
+                .name(pattern.getName()) // 设置节点名称
+                .quantifier(quantifier) // 设置量词
+                .condition(ConditionSpec.fromCondition(pattern.getCondition())) // 设置匹配条件
                 .build();
     }
 
+
     /**
-     * Converts the {@link GraphSpec} to the {@link Pattern}.
+     * 将 NodeSpec 转换为 Pattern 对象。
      *
-     * @param classLoader The {@link ClassLoader} of the {@link Pattern}.
-     * @return The converted {@link Pattern}.
-     * @throws Exception Exceptions thrown while deserialization of the Pattern.
+     * @param previous 上一个模式，表示当前模式的前驱。
+     * @param afterMatchSkipStrategy 匹配完成后的跳跃策略。
+     * @param consumingStrategy 消费策略，描述模式匹配的行为（严格、跳过等）。
+     * @param classLoader 用于加载模式的类加载器。
+     * @return 转换后的 Pattern 对象。
+     * @throws Exception 在反序列化过程中可能抛出的异常。
      */
     public Pattern<?, ?> toPattern(
             final Pattern<?, ?> previous,
@@ -79,110 +115,168 @@ public class NodeSpec {
             final ConsumingStrategy consumingStrategy,
             final ClassLoader classLoader)
             throws Exception {
-        // Build pattern
+        // 如果当前对象是 GraphSpec，则将其转换为对应的 Pattern
         if (this instanceof GraphSpec) {
-            // TODO: should log if AfterMatchSkipStrategy of subgraph diff from the larger graph
+            // TODO: 如果子图的 AfterMatchSkipStrategy 与主图不一致，应记录日志
             return ((GraphSpec) this).toPattern(classLoader);
         }
-        Pattern<?, ?> pattern =
-                new Pattern(this.getName(), previous, consumingStrategy, afterMatchSkipStrategy);
+
+        // 构造一个新的 Pattern 对象
+        Pattern<?, ?> pattern = new Pattern(
+                this.getName(), previous, consumingStrategy, afterMatchSkipStrategy);
+
+        // 处理匹配条件 TODO 匹配条件如何与avator建立关系？
         final ConditionSpec conditionSpec = this.getCondition();
         if (conditionSpec != null) {
             IterativeCondition iterativeCondition = conditionSpec.toIterativeCondition(classLoader);
             if (iterativeCondition instanceof RichOrCondition) {
-                pattern.or(iterativeCondition);
+                pattern.or(iterativeCondition); // 添加 "或" 条件
             } else {
-                pattern.where(iterativeCondition);
+                pattern.where(iterativeCondition); // 添加普通条件
             }
         }
 
-        // Process quantifier's properties
+        // 处理量词的属性
         for (QuantifierProperty property : this.getQuantifier().getProperties()) {
             if (property.equals(QuantifierProperty.OPTIONAL)) {
-                pattern.optional();
+                pattern.optional(); // 设置为可选模式
             } else if (property.equals(QuantifierProperty.GREEDY)) {
-                pattern.greedy();
+                pattern.greedy(); // 设置为贪婪模式
             } else if (property.equals(QuantifierProperty.LOOPING)) {
                 final Times times = this.getQuantifier().getTimes();
                 if (times != null) {
-                    pattern.timesOrMore(times.getFrom(), times.getWindowTime());
+                    pattern.timesOrMore(times.getFrom(), times.getWindowTime()); // 设置重复匹配次数
                 }
             } else if (property.equals(QuantifierProperty.TIMES)) {
                 final Times times = this.getQuantifier().getTimes();
                 if (times != null) {
-                    pattern.times(times.getFrom(), times.getTo());
+                    pattern.times(times.getFrom(), times.getTo()); // 设置精确匹配次数
                 }
             }
         }
 
-        // Process innerConsumingStrategy of the quantifier
-        final ConsumingStrategy innerConsumingStrategy =
-                this.getQuantifier().getConsumingStrategy();
+        // 处理量词的内部消费策略
+        final ConsumingStrategy innerConsumingStrategy = this.getQuantifier().getConsumingStrategy();
         if (innerConsumingStrategy.equals(ConsumingStrategy.SKIP_TILL_ANY)) {
-            pattern.allowCombinations();
+            pattern.allowCombinations(); // 允许组合
         } else if (innerConsumingStrategy.equals(ConsumingStrategy.STRICT)) {
-            pattern.consecutive();
+            pattern.consecutive(); // 设置为连续匹配
         }
 
-        // Process until condition
+        // 处理 "直到" 条件
         final ConditionSpec untilCondition = this.getQuantifier().getUntilCondition();
         if (untilCondition != null) {
             final IterativeCondition iterativeCondition =
                     untilCondition.toIterativeCondition(classLoader);
-            pattern.until(iterativeCondition);
+            pattern.until(iterativeCondition); // 添加 "直到" 条件
         }
+
         return pattern;
     }
 
+
+    /**
+     * 获取节点名称。
+     *
+     * @return 节点的名称。
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * 获取节点类型。
+     *
+     * @return 节点的类型。
+     */
     public PatternNodeType getType() {
         return type;
     }
 
+    /**
+     * 获取节点的量词规格。
+     *
+     * @return 节点的量词规格。
+     */
     public QuantifierSpec getQuantifier() {
         return quantifier;
     }
 
+    /**
+     * 获取节点的匹配条件。
+     *
+     * @return 节点的匹配条件。
+     */
     public ConditionSpec getCondition() {
         return condition;
     }
 
-    /** Type of Node. */
+
+    /**
+     * 节点的类型。
+     */
     public enum PatternNodeType {
-        // ATOMIC Node is the basic Pattern
+        // 原子节点（ATOMIC）是最基本的模式
         ATOMIC,
-        // COMPOSITE Node is a Graph
+        // 组合节点（COMPOSITE）是一个子图（Graph）
         COMPOSITE
     }
 
-    /** The Builder for ModeSpec. */
-    private static final class Builder {
-        private String name;
-        private QuantifierSpec quantifier;
-        private ConditionSpec condition;
 
+    /**
+     * NodeSpec 的 Builder 类，用于构造 NodeSpec 对象。
+     */
+    private static final class Builder {
+        private String name; // 节点名称
+        private QuantifierSpec quantifier; // 量词规格
+        private ConditionSpec condition; // 匹配条件
+
+        /**
+         * 构造函数，初始化 Builder 对象。
+         */
         private Builder() {}
 
+        /**
+         * 设置节点名称。
+         *
+         * @param name 节点名称。
+         * @return Builder 本身，用于链式调用。
+         */
         public Builder name(String name) {
             this.name = name;
             return this;
         }
 
+        /**
+         * 设置量词规格。
+         *
+         * @param quantifier 量词规格。
+         * @return Builder 本身，用于链式调用。
+         */
         public Builder quantifier(QuantifierSpec quantifier) {
             this.quantifier = quantifier;
             return this;
         }
 
+        /**
+         * 设置匹配条件。
+         *
+         * @param condition 匹配条件。
+         * @return Builder 本身，用于链式调用。
+         */
         public Builder condition(ConditionSpec condition) {
             this.condition = condition;
             return this;
         }
 
+        /**
+         * 构造并返回 NodeSpec 对象。
+         *
+         * @return 构造的 NodeSpec 对象。
+         */
         public NodeSpec build() {
             return new NodeSpec(this.name, this.quantifier, this.condition);
         }
     }
+
 }
