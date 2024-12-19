@@ -1,4 +1,4 @@
-package demo;
+package demo.serializer;
 
 import org.apache.flink.cep.dynamic.impl.json.deserializer.ConditionSpecStdDeserializer;
 import org.apache.flink.cep.dynamic.impl.json.deserializer.NodeSpecStdDeserializer;

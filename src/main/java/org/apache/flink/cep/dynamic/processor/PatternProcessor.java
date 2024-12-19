@@ -25,48 +25,54 @@ import org.apache.flink.core.io.Versioned;
 import java.io.Serializable;
 
 /**
- * Base class for a pattern processor definition.
+ * PatternProcessor 是一个模式处理器的基础定义接口。
  *
- * <p>A pattern processor defines a certain {@link Pattern}, how to match the pattern, and how to
- * process the found matches.
+ * <p>模式处理器定义了以下内容：
+ * - 一个 {@link Pattern}，用于描述事件匹配的逻辑。
+ * - 如何匹配该模式。
+ * - 如何处理匹配到的结果。
  *
- * @param <IN> Base type of the elements appearing in the pattern.
+ * @param <IN> 表示出现在模式中的元素的基础类型。
  */
+
 public interface PatternProcessor<IN> extends Serializable, Versioned {
 
     /**
-     * Returns the ID of the pattern processor.
+     * 获取模式处理器的唯一标识符。
      *
-     * @return The ID of the pattern processor.
+     * @return 模式处理器的 ID。
      */
     String getId();
 
+
     /**
-     * Returns the scheduled time at which the pattern processor should take effective.
+     * 获取模式处理器生效的时间戳。
      *
-     * <p>If the scheduled time is earlier than current event/processing time, the pattern processor
-     * will immediately become effective.
+     * <p>模式处理器会在指定的时间戳后生效：
+     * - 如果时间戳早于当前事件/处理时间，模式处理器会立即生效。
+     * - 如果希望模式处理器始终立即生效，可以将时间戳设置为 {@code Long.MIN_VALUE}。
      *
-     * <p>If the pattern processor should always become effective immediately, the scheduled time
-     * can be set to {@code Long.MIN_VALUE}: {@value Long#MIN_VALUE}.
-     *
-     * @return The scheduled time.
+     * @return 模式处理器的生效时间戳。
      */
     default Long getTimestamp() {
         return Long.MIN_VALUE;
     }
 
+
     /**
-     * Returns the {@link Pattern} to be matched.
+     * 获取要匹配的 {@link Pattern}。
      *
-     * @return The pattern of the pattern processor.
+     * @param classLoader 用于加载模式的类加载器。
+     * @return 与模式处理器相关联的模式。
      */
     Pattern<IN, ?> getPattern(ClassLoader classLoader);
 
+
     /**
-     * Returns the {@link PatternProcessFunction} to process the found matches for the pattern.
+     * 获取用于处理模式匹配结果的 {@link PatternProcessFunction}。
      *
-     * @return The pattern process function of the pattern processor.
+     * @return 与模式处理器相关联的模式处理函数。
      */
     PatternProcessFunction<IN, ?> getPatternProcessFunction();
+
 }

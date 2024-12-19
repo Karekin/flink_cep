@@ -30,37 +30,58 @@ import javax.annotation.Nullable;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
- * Default implementation of the {@link PatternProcessor} that is configurable for {@link Pattern},
- * {@link KeySelector} and {@link PatternProcessFunction}.
+ * DefaultPatternProcessor 是 {@link PatternProcessor} 的默认实现类，
+ * 提供了一个可配置的模式处理器。
  *
- * @param <T> Type of the elements appearing in the pattern and produced elements based on found
- *     matches.
+ * <p>此类支持：
+ * - 使用字符串形式的模式定义（`patternStr`）。
+ * - 动态加载模式处理函数 {@link PatternProcessFunction}。
+ *
+ * @param <T> 表示出现在模式中的元素类型，同时也是基于匹配结果生成的元素类型。
  */
+
 @PublicEvolving
 public class DefaultPatternProcessor<T> implements PatternProcessor<T> {
 
-    /** The ID of the pattern processor. */
+    /** 模式处理器的唯一标识符，用于标识此处理器实例。 */
     private final String id;
 
-    /** The version of the pattern processor. */
+    /** 模式处理器的版本号，用于管理和区分不同版本的处理器。 */
     private final Integer version;
 
-    /** The pattern of the pattern processor. */
+    /** 模式的字符串表示形式，用于定义模式逻辑。 */
     private final String patternStr;
 
+    /**
+     * 模式处理函数 {@link PatternProcessFunction}，用于处理匹配到的结果。
+     *
+     * <p>此字段可以为 null，表示无需额外处理匹配结果。
+     */
     private final @Nullable PatternProcessFunction<T, ?> patternProcessFunction;
 
+
+    /**
+     * 构造一个 DefaultPatternProcessor 实例。
+     *
+     * @param id 模式处理器的唯一标识符。
+     * @param version 模式处理器的版本号。
+     * @param pattern 模式的字符串表示形式。
+     * @param patternProcessFunction 模式处理函数，可为 null。
+     * @param userCodeClassLoader 用户代码类加载器，用于动态加载模式定义和处理逻辑。
+     * @throws NullPointerException 如果 id、version 或 pattern 为 null，则抛出异常。
+     */
     public DefaultPatternProcessor(
             final String id,
             final Integer version,
             final String pattern,
             final @Nullable PatternProcessFunction<T, ?> patternProcessFunction,
             final ClassLoader userCodeClassLoader) {
-        this.id = checkNotNull(id);
-        this.version = checkNotNull(version);
-        this.patternStr = checkNotNull(pattern);
+        this.id = checkNotNull(id, "Pattern Processor ID 不能为空");
+        this.version = checkNotNull(version, "Pattern Processor 版本号不能为空");
+        this.patternStr = checkNotNull(pattern, "Pattern 定义不能为空");
         this.patternProcessFunction = patternProcessFunction;
     }
+
 
     @Override
     public String toString() {
@@ -87,22 +108,35 @@ public class DefaultPatternProcessor<T> implements PatternProcessor<T> {
         return version;
     }
 
+    /**
+     * 使用指定的类加载器加载并解析模式。
+     *
+     * <p>此方法将模式的字符串形式（`patternStr`）转换为 {@link Pattern} 对象。
+     *
+     * @param classLoader 类加载器，用于动态加载模式定义。
+     * @return 解析后的 {@link Pattern} 对象。
+     * @throws RuntimeException 如果解析模式字符串失败，则抛出异常。
+     */
     @Override
     public Pattern<T, ?> getPattern(ClassLoader classLoader) {
         try {
             return (Pattern<T, ?>) CepJsonUtils.convertJSONStringToPattern(patternStr, classLoader);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("模式解析失败: " + e.getMessage(), e);
         }
     }
 
+
     /**
-     * Returns the {@link PatternProcessFunction} to collect all the found matches.
+     * 获取用于处理匹配结果的模式处理函数。
      *
-     * @return The pattern process function of the pattern processor.
+     * <p>如果未显式提供模式处理函数，此方法将返回一个默认的 {@link DemoPatternProcessFunction}。
+     *
+     * @return 模式处理函数 {@link PatternProcessFunction}。
      */
     @Override
     public PatternProcessFunction<T, ?> getPatternProcessFunction() {
-        return new DemoPatternProcessFunction<>();
+        return patternProcessFunction != null ? patternProcessFunction : new DemoPatternProcessFunction<>();
     }
+
 }
