@@ -44,29 +44,47 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A context class for the {@link OperatorCoordinator}.
+ * {@link OperatorCoordinator} 的上下文类。
  *
- * <p>The context serves a few purposes:
+ * <p>该类负责为协调器提供线程模型和上下文支持，主要功能包括：
+ * - 确保所有协调器状态操作均由同一线程处理。
+ * - 提供对 Flink 操作符协调器上下文的访问。
+ * - 管理子任务网关，并负责事件的发送与接收。
  *
- * <ul>
- *   <li>Thread model enforcement - The context ensures that all the manipulations to the
- *       coordinator state are handled by the same thread.
- * </ul>
+ * @see OperatorCoordinator
  */
+
 @Internal
 public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(DynamicCepOperatorCoordinatorContext.class);
 
+    /** 用于协调器的单线程执行器，确保协调器状态的线程安全操作。 */
     private final ScheduledExecutorService coordinatorExecutor;
+
+    /** 用于后台任务的单线程执行器，例如数据处理或异步操作。 */
     private final ScheduledExecutorService workerExecutor;
+
+    /** 协调器线程工厂，用于创建协调器专用线程。 */
     private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
+
+    /** Flink 的操作符协调器上下文，用于访问运行时相关信息。 */
     private final OperatorCoordinator.Context operatorCoordinatorContext;
+
+    /** 子任务网关的映射表，用于与每个子任务通信。 */
     private final Map<Integer, OperatorCoordinator.SubtaskGateway> subtaskGateways;
 
+    /** 时钟实例，用于时间操作。 */
     private static final Clock clock = SystemClock.getInstance();
 
+
+    /**
+     * 使用指定的线程工厂和 Flink 操作符协调器上下文创建上下文。
+     *
+     * @param coordinatorThreadFactory 协调器线程工厂，用于创建协调器线程。
+     * @param operatorCoordinatorContext Flink 操作符协调器上下文。
+     */
     public DynamicCepOperatorCoordinatorContext(
             CoordinatorExecutorThreadFactory coordinatorThreadFactory,
             OperatorCoordinator.Context operatorCoordinatorContext) {
@@ -80,6 +98,15 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
                 operatorCoordinatorContext);
     }
 
+
+    /**
+     * 使用自定义的执行器和线程工厂创建上下文。
+     *
+     * @param coordinatorExecutor 协调器的执行器。
+     * @param workerExecutor 后台任务的执行器。
+     * @param coordinatorThreadFactory 协调器线程工厂。
+     * @param operatorCoordinatorContext Flink 操作符协调器上下文。
+     */
     public DynamicCepOperatorCoordinatorContext(
             ScheduledExecutorService coordinatorExecutor,
             ScheduledExecutorService workerExecutor,
@@ -92,6 +119,14 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
         this.subtaskGateways = new HashMap<>(operatorCoordinatorContext.currentParallelism());
     }
 
+
+    /**
+     * 关闭协调器上下文。
+     *
+     * <p>此方法强制关闭所有执行器，以确保线程安全地释放资源。
+     *
+     * @throws InterruptedException 如果关闭过程中被中断，则抛出异常。
+     */
     @Override
     public void close() throws InterruptedException {
         // Close quietly so the closing sequence will be executed completely.
@@ -99,15 +134,33 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
         shutdownExecutorForcefully(coordinatorExecutor, Duration.ofNanos(Long.MAX_VALUE));
     }
 
+
+    /**
+     * 在协调器线程中执行指定的操作。
+     *
+     * @param runnable 要执行的操作。
+     */
     public void runInCoordinatorThread(Runnable runnable) {
         coordinatorExecutor.execute(runnable);
     }
 
     // --------- Package private additional methods for the PatternProcessorCoordinator ------------
+    /**
+     * 获取用户代码的类加载器。
+     *
+     * @return 用户代码的类加载器。
+     */
     ClassLoader getUserCodeClassloader() {
         return this.operatorCoordinatorContext.getUserCodeClassloader();
     }
 
+
+    /**
+     * 标记子任务已准备好，并为其设置网关。
+     *
+     * @param gateway 子任务的网关。
+     * @throws IllegalStateException 如果指定子任务已存在网关，则抛出异常。
+     */
     void subtaskReady(OperatorCoordinator.SubtaskGateway gateway) {
         final int subtask = gateway.getSubtask();
         if (subtaskGateways.get(subtask) == null) {
@@ -117,19 +170,37 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
         }
     }
 
+
+    /**
+     * 标记子任务未准备好。
+     *
+     * @param subtaskIndex 子任务索引。
+     */
     void subtaskNotReady(int subtaskIndex) {
         subtaskGateways.put(subtaskIndex, null);
     }
 
+
+    /**
+     * 获取所有子任务的索引。
+     *
+     * @return 子任务索引的集合。
+     */
     Set<Integer> getSubtasks() {
         return subtaskGateways.keySet();
     }
 
+
+    /**
+     * 向指定子任务发送事件。
+     *
+     * @param subtaskId 子任务的 ID。
+     * @param event 要发送的事件。
+     */
     public void sendEventToOperator(int subtaskId, OperatorEvent event) {
         callInCoordinatorThread(
                 () -> {
-                    final OperatorCoordinator.SubtaskGateway gateway =
-                            subtaskGateways.get(subtaskId);
+                    final OperatorCoordinator.SubtaskGateway gateway = subtaskGateways.get(subtaskId);
                     if (gateway == null) {
                         LOG.warn(
                                 String.format(
@@ -155,39 +226,57 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
     // ---------------- private helper methods -----------------
 
     /**
-     * A helper method that delegates the callable to the coordinator thread if the current thread
-     * is not the coordinator thread, otherwise call the callable right away.
+     * 在协调器线程中执行指定的操作。
      *
-     * @param callable the callable to delegate.
+     * <p>此方法确保指定的操作由协调器线程执行。如果当前线程不是协调器线程，或者协调器执行器未关闭，
+     * 则操作会被提交到协调器执行器中。否则直接在当前线程中执行操作。
+     *
+     * <p>如果操作执行过程中发生异常，将捕获并记录日志，同时抛出 {@link FlinkRuntimeException}。
+     *
+     * @param callable 要执行的操作，返回值类型为 V。
+     * @param errorMessage 如果操作失败时的错误消息，用于抛出异常时的描述。
+     * @param <V> 返回值的类型。
+     * @return 操作的返回结果。
+     * @throws FlinkRuntimeException 如果操作执行失败或抛出未捕获的异常。
      */
     private <V> V callInCoordinatorThread(Callable<V> callable, String errorMessage) {
-        // Ensure the split assignment is done by the coordinator executor.
-        if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread()
-                && !coordinatorExecutor.isShutdown()) {
+        // 确保分配操作在协调器线程中执行。
+        if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread() // 检查当前线程是否为协调器线程
+                && !coordinatorExecutor.isShutdown()) { // 检查协调器执行器是否已关闭
             try {
+                // 包装要执行的操作，确保异常被捕获并重新抛出
                 final Callable<V> guardedCallable =
                         () -> {
                             try {
+                                // 执行操作
                                 return callable.call();
                             } catch (Throwable t) {
+                                // 捕获未处理的异常并记录日志
                                 LOG.error("Uncaught Exception in Source Coordinator Executor", t);
+                                // 重新抛出异常
                                 ExceptionUtils.rethrowException(t);
-                                return null;
+                                return null; // 此代码实际上不可达，但需要以满足 Callable 接口
                             }
                         };
 
+                // 提交操作到协调器线程执行，并等待结果返回
                 return coordinatorExecutor.submit(guardedCallable).get();
             } catch (InterruptedException | ExecutionException e) {
+                // 捕获中断或执行异常，并封装为 FlinkRuntimeException 抛出
                 throw new FlinkRuntimeException(errorMessage, e);
             }
         }
 
         try {
+            // 如果当前线程是协调器线程，则直接执行操作
             return callable.call();
         } catch (Throwable t) {
+            // 捕获未处理的异常并记录日志
             LOG.error("Uncaught Exception in Source Coordinator Executor", t);
+            // 抛出封装的 FlinkRuntimeException
             throw new FlinkRuntimeException(errorMessage, t);
         }
+
     }
 
     /**
@@ -195,6 +284,12 @@ public class DynamicCepOperatorCoordinatorContext implements AutoCloseable {
      *
      * @param executor the executor to shut down.
      * @param timeout the timeout duration.
+     */
+    /**
+     * 强制关闭指定的执行器。
+     *
+     * @param executor 要关闭的执行器。
+     * @param timeout 关闭的超时时间。
      */
     private void shutdownExecutorForcefully(ExecutorService executor, Duration timeout) {
         Deadline deadline = Deadline.fromNowWithClock(timeout, clock);
