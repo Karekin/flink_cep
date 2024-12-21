@@ -514,7 +514,7 @@ public class DynamicCepOperator<IN, KEY, OUT> extends AbstractStreamOperator<OUT
                             Collection<Map<String, List<IN>>>,
                             Collection<Tuple2<Map<String, List<IN>>, Long>>>
                     pendingMatchesAndTimeout =
-                            nfa.advanceTime(sharedBufferAccessor, nfaState, timestamp);
+                    (Tuple2<Collection<Map<String, List<IN>>>, Collection<Tuple2<Map<String, List<IN>>, Long>>>) nfa.advanceTime(sharedBufferAccessor, nfaState, timestamp);
 
             Collection<Map<String, List<IN>>> pendingMatches = pendingMatchesAndTimeout.f0;
             Collection<Tuple2<Map<String, List<IN>>, Long>> timedOut = pendingMatchesAndTimeout.f1;
